@@ -1,7 +1,8 @@
 from django.contrib.auth.models import User
 from django.db import models
-from django.db.models import Count
+from django.db.models import Count, Prefetch
 from django.urls import reverse
+
 
 class PostQuerySet(models.QuerySet):
     def popular(self):
@@ -11,12 +12,13 @@ class PostQuerySet(models.QuerySet):
         posts_ids = [post.id for post in self]
         posts_with_comments = Post.objects.filter(id__in=posts_ids).annotate(comments_count=Count('comments'))
         ids_and_comments = posts_with_comments.values_list('id', 'comments_count')
-        count_for_id = dict(ids_and_comments)    
+        count_for_id = dict(ids_and_comments)
 
         for post in self:
             post.comments_count = count_for_id[post.id]
 
         return self
+
 
 class Post(models.Model):
     title = models.CharField("Заголовок", max_length=200)
@@ -47,6 +49,10 @@ class Post(models.Model):
 class TagQuerySet(models.QuerySet):
     def popular(self):
         return self.annotate(Count("posts")).order_by('-posts__count')
+
+    def fetch_with_posts_count(self):
+        prefetch = Prefetch('posts', queryset=self.annotate(posts_count=Count('posts')), to_attr="posts_count")
+        return self.prefetch_related(prefetch)
 
 
 class Tag(models.Model):
